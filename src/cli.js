@@ -1,6 +1,11 @@
+const Table = require('cli-table3');
 const { Command } = require('commander');
 const { openMessagesDb, DEFAULT_DB_PATH } = require('./db');
 const { listConversations, getMessagesForHandle } = require('./queries');
+
+const LIST_COLUMN_WIDTHS = { chatId: 9, type: 8, messages: 10, lastMessage: 21 };
+const LIST_TABLE_OVERHEAD = 16; // cli-table3 borders + padding for 5 columns
+const MIN_NAME_COLUMN_WIDTH = 30;
 
 function formatDate(date) {
   if (!date) return '—';
@@ -9,14 +14,27 @@ function formatDate(date) {
 
 function printList(db) {
   const conversations = listConversations(db);
-  const rows = conversations.map((c) => ({
-    'CHAT ID': c.chatId,
-    TYPE: c.type,
-    'NAME/HANDLE(S)': c.displayName || c.handles.join(', ') || '(unknown)',
-    MESSAGES: c.messageCount,
-    'LAST MESSAGE': formatDate(c.lastMessageDate),
-  }));
-  console.table(rows);
+  const terminalWidth = process.stdout.columns || 120;
+  const fixedWidth = LIST_COLUMN_WIDTHS.chatId + LIST_COLUMN_WIDTHS.type + LIST_COLUMN_WIDTHS.messages + LIST_COLUMN_WIDTHS.lastMessage;
+  const nameColumnWidth = Math.max(MIN_NAME_COLUMN_WIDTH, terminalWidth - fixedWidth - LIST_TABLE_OVERHEAD);
+
+  const table = new Table({
+    head: ['CHAT ID', 'TYPE', 'NAME/HANDLE(S)', 'MESSAGES', 'LAST MESSAGE'],
+    colWidths: [LIST_COLUMN_WIDTHS.chatId, LIST_COLUMN_WIDTHS.type, nameColumnWidth, LIST_COLUMN_WIDTHS.messages, LIST_COLUMN_WIDTHS.lastMessage],
+    wordWrap: true,
+  });
+
+  for (const c of conversations) {
+    table.push([
+      c.chatId,
+      c.type,
+      c.displayName || c.handles.join(', ') || '(unknown)',
+      c.messageCount,
+      formatDate(c.lastMessageDate),
+    ]);
+  }
+
+  console.log(table.toString());
 }
 
 function printTranscript(db, handle, limit) {
