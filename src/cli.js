@@ -1,7 +1,8 @@
 const Table = require('cli-table3');
-const { Command } = require('commander');
+const { Command, Option } = require('commander');
 const { openMessagesDb, DEFAULT_DB_PATH } = require('./db');
-const { listConversations, getMessagesForHandle } = require('./queries');
+const { listConversations, getMessagesForHandle, getMessagesForChatId } = require('./queries');
+const { parseChatId } = require('./chatId');
 
 const LIST_COLUMN_WIDTHS = { chatId: 9, type: 8, messages: 10, lastMessage: 21 };
 const LIST_TABLE_OVERHEAD = 16; // cli-table3 borders + padding for 5 columns
@@ -37,10 +38,9 @@ function printList(db) {
   console.log(table.toString());
 }
 
-function printTranscript(db, handle, limit) {
-  const messages = getMessagesForHandle(db, handle, { limit });
+function printTranscript(messages) {
   for (const message of messages) {
-    const sender = message.isFromMe ? 'Me' : handle;
+    const sender = message.isFromMe ? 'Me' : message.senderHandle || 'Unknown';
     console.log(`[${formatDate(message.date)}] ${sender}: ${message.text}`);
   }
 }
@@ -72,13 +72,19 @@ function run(argv) {
     );
 
   program
-    .command('read <handle>')
-    .description('Print a chronological transcript for the 1:1 conversation matching <handle>')
+    .command('read <value>')
+    .description('Print a chronological transcript for a conversation, by chat ID (default) or handle')
+    .addOption(new Option('--id', 'treat <value> as a chat ID (default)').conflicts('handle'))
+    .addOption(new Option('--handle', 'treat <value> as a phone/email substring').conflicts('id'))
     .option('--limit <n>', 'maximum number of most recent messages to show', '100')
     .action(
-      withErrorHandling((handle, options) => {
+      withErrorHandling((value, options) => {
         const db = openMessagesDb(program.opts().dbPath);
-        printTranscript(db, handle, Number(options.limit));
+        const limit = Number(options.limit);
+        const messages = options.handle
+          ? getMessagesForHandle(db, value, { limit })
+          : getMessagesForChatId(db, parseChatId(value), { limit });
+        printTranscript(messages);
       })
     );
 

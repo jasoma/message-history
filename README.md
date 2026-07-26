@@ -21,15 +21,19 @@ List all conversations (1:1 and group) with message counts and last-message date
 node bin/cli.js list
 ```
 
-### `read <handle> [--limit N]`
+### `read <value> [--id | --handle] [--limit N]`
 
-Print a chronological transcript for the 1:1 conversation matching `<handle>`
-(phone number or email substring). `--limit` caps the number of most recent
+Print a chronological transcript for a conversation. `<value>` is interpreted
+as a chat ID (from `list`) by default; pass `--handle` to instead match by
+phone number/email substring (works for 1:1 conversations only). `--id` and
+`--handle` are mutually exclusive. `--limit` caps the number of most recent
 messages shown (default 100).
 
 ```bash
-node bin/cli.js read +15551234567
-node bin/cli.js read someone@example.com --limit 20
+node bin/cli.js read 42                                  # by chat ID (default)
+node bin/cli.js read 42 --id                              # same, explicit
+node bin/cli.js read +15551234567 --handle                # by handle
+node bin/cli.js read someone@example.com --handle --limit 20
 ```
 
 ### Global options

@@ -65,7 +65,7 @@ function getMessagesForHandle(db, handleQuery, { limit = DEFAULT_READ_LIMIT } = 
     throw new HandleLookupError(`"${handleQuery}" matches multiple handles (${matches}). Be more specific.`);
   }
 
-  const [{ handleId }] = handles;
+  const [{ handleId, handleValue }] = handles;
   const chats = db
     .prepare(
       `SELECT c.ROWID as chatId
@@ -81,25 +81,48 @@ function getMessagesForHandle(db, handleQuery, { limit = DEFAULT_READ_LIMIT } = 
   }
 
   const chatIds = chats.map((c) => c.chatId);
+  const rows = selectMessagesForChatIds(db, chatIds, limit);
+
+  // A 1:1 chat has exactly one other participant, so every inbound message's
+  // sender is known without needing to join against `handle` per row.
+  return rows.map((row) => mapMessageRow(row, handleValue)).reverse();
+}
+
+function getMessagesForChatId(db, chatId, { limit = DEFAULT_READ_LIMIT } = {}) {
+  const chat = db.prepare(`SELECT ROWID as chatId FROM chat WHERE ROWID = ?`).get(chatId);
+  if (!chat) {
+    throw new HandleLookupError(`No chat found with id ${chatId}. Run "list" to see known conversations.`);
+  }
+
+  const rows = selectMessagesForChatIds(db, [chatId], limit, { includeSenderHandle: true });
+  return rows.map((row) => mapMessageRow(row, row.senderHandle)).reverse();
+}
+
+function selectMessagesForChatIds(db, chatIds, limit, { includeSenderHandle = false } = {}) {
   const placeholders = chatIds.map(() => '?').join(', ');
-  const rows = db
+  const senderHandleColumn = includeSenderHandle ? ', h.id as senderHandle' : '';
+  const senderHandleJoin = includeSenderHandle ? 'LEFT JOIN handle h ON h.ROWID = m.handle_id' : '';
+
+  return db
     .prepare(
-      `SELECT m.date as appleDate, m.text as text, m.attributedBody as attributedBody, m.is_from_me as isFromMe
+      `SELECT m.date as appleDate, m.text as text, m.attributedBody as attributedBody, m.is_from_me as isFromMe${senderHandleColumn}
        FROM message m
        JOIN chat_message_join cmj ON cmj.message_id = m.ROWID
+       ${senderHandleJoin}
        WHERE cmj.chat_id IN (${placeholders})
        ORDER BY m.date DESC
        LIMIT ?`
     )
     .all(...chatIds, limit);
+}
 
-  return rows
-    .map((row) => ({
-      date: appleTimestampToDate(row.appleDate),
-      isFromMe: !!row.isFromMe,
-      text: resolveMessageText(row.text, row.attributedBody),
-    }))
-    .reverse();
+function mapMessageRow(row, senderHandle) {
+  return {
+    date: appleTimestampToDate(row.appleDate),
+    isFromMe: !!row.isFromMe,
+    senderHandle: row.isFromMe ? null : senderHandle,
+    text: resolveMessageText(row.text, row.attributedBody),
+  };
 }
 
 function resolveMessageText(text, attributedBody) {
@@ -108,4 +131,4 @@ function resolveMessageText(text, attributedBody) {
   return UNREADABLE_PLACEHOLDER;
 }
 
-module.exports = { listConversations, getMessagesForHandle, HandleLookupError };
+module.exports = { listConversations, getMessagesForHandle, getMessagesForChatId, HandleLookupError };
