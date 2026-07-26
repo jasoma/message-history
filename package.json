@@ -1,0 +1,11 @@
+{
+  "name": "message-history",
+  "version": "1.0.0",
+  "description": "Tool for reading apple message history locally",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo 'OK'"
+  },
+  "author": "Jason Maher <jason@jasonmaher.me>",
+  "license": "UNLICENSED"
+}
