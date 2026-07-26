@@ -3,9 +3,16 @@
   "version": "1.0.0",
   "description": "Tool for reading apple message history locally",
   "main": "index.js",
+  "bin": {
+    "message-history": "./bin/cli.js"
+  },
   "scripts": {
-    "test": "echo 'OK'"
+    "test": "node --test test/*.test.js"
   },
   "author": "Jason Maher <jason@jasonmaher.me>",
-  "license": "UNLICENSED"
+  "license": "UNLICENSED",
+  "dependencies": {
+    "better-sqlite3": "^13.0.1",
+    "commander": "^15.0.0"
+  }
 }
