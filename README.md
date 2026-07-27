@@ -55,6 +55,23 @@ node bin/cli.js read +15551234567 --handle                # by handle
 node bin/cli.js read someone@example.com --handle --limit 20
 ```
 
+### `export <value> [--id | --handle] [--limit N] [-o path]`
+
+Export a conversation's full message history (no cap, unlike `read`) to a
+PDF file. Selector flags work the same as `read`. `--limit N` caps it like
+`read` does, if you don't want the whole history. Default output filename:
+`messages-<sanitized value>.pdf` in the current directory; `-o/--output`
+overrides it.
+
+Text renders with bundled Noto Sans / Noto Sans JP fonts (covers Latin,
+Cyrillic, Greek, and Japanese). Korean text and emoji aren't covered by
+either bundled font and will render as blank boxes.
+
+```bash
+node bin/cli.js export 42
+node bin/cli.js export +15551234567 --handle -o ~/Desktop/thread.pdf
+```
+
 ### Global options
 
 - `--db-path <path>` — use a chat.db at a non-default location (useful for testing).

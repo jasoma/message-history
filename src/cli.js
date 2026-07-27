@@ -1,20 +1,25 @@
 const Table = require('cli-table3');
 const { Command, Option } = require('commander');
 const { openMessagesDb, DEFAULT_DB_PATH } = require('./db');
-const { listConversations, getMessagesForHandle, getMessagesForChatId } = require('./queries');
+const {
+  listConversations,
+  getMessagesForHandle,
+  getMessagesForChatId,
+  getChatMeta,
+  streamMessagesForHandle,
+  streamMessagesForChatId,
+} = require('./queries');
 const { parseChatId } = require('./chatId');
 const { loadContacts } = require('./contactsCache');
 const { findContactName } = require('./contactMatching');
 const { conversationMatchesFilter } = require('./listFilter');
+const { formatDate } = require('./formatDate');
+const { defaultExportFilename } = require('./exportFilename');
+const { exportTranscriptToPdf } = require('./pdfExport');
 
 const LIST_COLUMN_WIDTHS = { chatId: 9, type: 8, messages: 10, lastMessage: 21 };
 const LIST_TABLE_OVERHEAD = 16; // cli-table3 borders + padding for 5 columns
 const MIN_NAME_COLUMN_WIDTH = 30;
-
-function formatDate(date) {
-  if (!date) return '—';
-  return date.toLocaleString('en-US', { hour12: false }).replace(',', '');
-}
 
 function fetchContactsOrWarn(forceRefresh) {
   try {
@@ -68,15 +73,26 @@ function printTranscript(messages, forceRefreshContacts) {
   }
 }
 
+// Lazily maps a message iterable (array or streaming generator, either is
+// fine here) to the {date, sender, text} shape pdfExport needs, without ever
+// materializing the whole thing into an array itself.
+function* mapMessagesForPdf(messages, contacts) {
+  for (const message of messages) {
+    let sender = 'Unknown';
+    if (message.isFromMe) sender = 'Me';
+    else if (message.senderHandle) sender = formatHandleWithName(message.senderHandle, contacts);
+    yield { date: message.date, sender, text: message.text };
+  }
+}
+
 function withErrorHandling(action) {
-  return (...args) => {
-    try {
-      action(...args);
-    } catch (error) {
-      console.error(`Error: ${error.message}`);
-      process.exitCode = 1;
-    }
-  };
+  return (...args) =>
+    Promise.resolve()
+      .then(() => action(...args))
+      .catch((error) => {
+        console.error(`Error: ${error.message}`);
+        process.exitCode = 1;
+      });
 }
 
 function run(argv) {
@@ -109,6 +125,37 @@ function run(argv) {
           ? getMessagesForHandle(db, value, { limit })
           : getMessagesForChatId(db, parseChatId(value), { limit });
         printTranscript(messages, program.opts().updateContacts);
+      })
+    );
+
+  program
+    .command('export <value>')
+    .description("Export a conversation's full message history to a PDF, by chat ID (default) or handle")
+    .addOption(new Option('--id', 'treat <value> as a chat ID (default)').conflicts('handle'))
+    .addOption(new Option('--handle', 'treat <value> as a phone/email substring').conflicts('id'))
+    .option('--limit <n>', 'cap the number of most recent messages exported (default: unlimited)')
+    .option('-o, --output <path>', 'output PDF file path (default: messages-<value>.pdf)')
+    .action(
+      withErrorHandling(async (value, options) => {
+        const db = openMessagesDb(program.opts().dbPath);
+        const contacts = fetchContactsOrWarn(program.opts().updateContacts);
+        const limit = options.limit ? Number(options.limit) : null;
+        const outputPath = options.output || defaultExportFilename(value);
+
+        let messages;
+        let title;
+        if (options.handle) {
+          messages = limit ? getMessagesForHandle(db, value, { limit }) : streamMessagesForHandle(db, value);
+          title = formatHandleWithName(value, contacts);
+        } else {
+          const chatId = parseChatId(value);
+          const meta = getChatMeta(db, chatId);
+          messages = limit ? getMessagesForChatId(db, chatId, { limit }) : streamMessagesForChatId(db, chatId);
+          title = meta.displayName || meta.handles.map((h) => formatHandleWithName(h, contacts)).join(', ') || `Chat ${chatId}`;
+        }
+
+        const count = await exportTranscriptToPdf(mapMessagesForPdf(messages, contacts), outputPath, { title });
+        console.log(`Wrote ${count} messages to ${outputPath}`);
       })
     );
 

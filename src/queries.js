@@ -52,7 +52,7 @@ function listConversations(db) {
   });
 }
 
-function getMessagesForHandle(db, handleQuery, { limit = DEFAULT_READ_LIMIT } = {}) {
+function resolveHandleChatIds(db, handleQuery) {
   const handles = db
     .prepare(`SELECT ROWID as handleId, id as handleValue FROM handle WHERE id LIKE ?`)
     .all(`%${handleQuery}%`);
@@ -65,7 +65,7 @@ function getMessagesForHandle(db, handleQuery, { limit = DEFAULT_READ_LIMIT } = 
     throw new HandleLookupError(`"${handleQuery}" matches multiple handles (${matches}). Be more specific.`);
   }
 
-  const [{ handleId, handleValue }] = handles;
+  const [{ handleId }] = handles;
   const chats = db
     .prepare(
       `SELECT c.ROWID as chatId
@@ -80,35 +80,64 @@ function getMessagesForHandle(db, handleQuery, { limit = DEFAULT_READ_LIMIT } = 
     throw new HandleLookupError(`No direct (1:1) conversation found for "${handleQuery}". Run "list" to see known conversations.`);
   }
 
-  const chatIds = chats.map((c) => c.chatId);
-  const rows = selectMessagesForChatIds(db, chatIds, limit);
-
-  // A 1:1 chat has exactly one other participant, so every inbound message's
-  // sender is known without needing to join against `handle` per row.
-  return rows.map((row) => mapMessageRow(row, handleValue)).reverse();
+  return chats.map((c) => c.chatId);
 }
 
-function getMessagesForChatId(db, chatId, { limit = DEFAULT_READ_LIMIT } = {}) {
-  const chat = db.prepare(`SELECT ROWID as chatId FROM chat WHERE ROWID = ?`).get(chatId);
+function getChatMeta(db, chatId) {
+  const chat = db.prepare(`SELECT ROWID as chatId, display_name as displayName FROM chat WHERE ROWID = ?`).get(chatId);
   if (!chat) {
     throw new HandleLookupError(`No chat found with id ${chatId}. Run "list" to see known conversations.`);
   }
 
-  const rows = selectMessagesForChatIds(db, [chatId], limit, { includeSenderHandle: true });
-  return rows.map((row) => mapMessageRow(row, row.senderHandle)).reverse();
+  const handles = db
+    .prepare(
+      `SELECT h.id as handle
+       FROM chat_handle_join chj
+       JOIN handle h ON h.ROWID = chj.handle_id
+       WHERE chj.chat_id = ?`
+    )
+    .all(chatId)
+    .map((row) => row.handle);
+
+  return { displayName: chat.displayName, handles };
 }
 
-function selectMessagesForChatIds(db, chatIds, limit, { includeSenderHandle = false } = {}) {
-  const placeholders = chatIds.map(() => '?').join(', ');
-  const senderHandleColumn = includeSenderHandle ? ', h.id as senderHandle' : '';
-  const senderHandleJoin = includeSenderHandle ? 'LEFT JOIN handle h ON h.ROWID = m.handle_id' : '';
+function getMessagesForHandle(db, handleQuery, { limit = DEFAULT_READ_LIMIT } = {}) {
+  const chatIds = resolveHandleChatIds(db, handleQuery);
+  const rows = selectMessagesForChatIds(db, chatIds, limit);
+  return rows.map(mapMessageRow).reverse();
+}
 
+function getMessagesForChatId(db, chatId, { limit = DEFAULT_READ_LIMIT } = {}) {
+  getChatMeta(db, chatId);
+  const rows = selectMessagesForChatIds(db, [chatId], limit);
+  return rows.map(mapMessageRow).reverse();
+}
+
+// Unbounded streaming variants for full-history export: validate/resolve
+// eagerly (so a bad handle/chat id throws immediately, before any file I/O
+// starts), then return a lazy generator so the whole history never has to be
+// held in memory at once, unlike the bounded .all()-based functions above.
+function streamMessagesForHandle(db, handleQuery) {
+  const chatIds = resolveHandleChatIds(db, handleQuery);
+  return iterateMessagesForChatIds(db, chatIds);
+}
+
+function streamMessagesForChatId(db, chatId) {
+  getChatMeta(db, chatId);
+  return iterateMessagesForChatIds(db, [chatId]);
+}
+
+const MESSAGE_ROW_COLUMNS = `m.date as appleDate, m.text as text, m.attributedBody as attributedBody, m.is_from_me as isFromMe, h.id as senderHandle`;
+const MESSAGE_ROW_JOINS = `JOIN chat_message_join cmj ON cmj.message_id = m.ROWID LEFT JOIN handle h ON h.ROWID = m.handle_id`;
+
+function selectMessagesForChatIds(db, chatIds, limit) {
+  const placeholders = chatIds.map(() => '?').join(', ');
   return db
     .prepare(
-      `SELECT m.date as appleDate, m.text as text, m.attributedBody as attributedBody, m.is_from_me as isFromMe${senderHandleColumn}
+      `SELECT ${MESSAGE_ROW_COLUMNS}
        FROM message m
-       JOIN chat_message_join cmj ON cmj.message_id = m.ROWID
-       ${senderHandleJoin}
+       ${MESSAGE_ROW_JOINS}
        WHERE cmj.chat_id IN (${placeholders})
        ORDER BY m.date DESC
        LIMIT ?`
@@ -116,11 +145,26 @@ function selectMessagesForChatIds(db, chatIds, limit, { includeSenderHandle = fa
     .all(...chatIds, limit);
 }
 
-function mapMessageRow(row, senderHandle) {
+function* iterateMessagesForChatIds(db, chatIds) {
+  const placeholders = chatIds.map(() => '?').join(', ');
+  const rows = db
+    .prepare(
+      `SELECT ${MESSAGE_ROW_COLUMNS}
+       FROM message m
+       ${MESSAGE_ROW_JOINS}
+       WHERE cmj.chat_id IN (${placeholders})
+       ORDER BY m.date ASC`
+    )
+    .iterate(...chatIds);
+
+  for (const row of rows) yield mapMessageRow(row);
+}
+
+function mapMessageRow(row) {
   return {
     date: appleTimestampToDate(row.appleDate),
     isFromMe: !!row.isFromMe,
-    senderHandle: row.isFromMe ? null : senderHandle,
+    senderHandle: row.isFromMe ? null : row.senderHandle,
     text: resolveMessageText(row.text, row.attributedBody),
   };
 }
@@ -131,4 +175,12 @@ function resolveMessageText(text, attributedBody) {
   return UNREADABLE_PLACEHOLDER;
 }
 
-module.exports = { listConversations, getMessagesForHandle, getMessagesForChatId, HandleLookupError };
+module.exports = {
+  listConversations,
+  getMessagesForHandle,
+  getMessagesForChatId,
+  getChatMeta,
+  streamMessagesForHandle,
+  streamMessagesForChatId,
+  HandleLookupError,
+};
