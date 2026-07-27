@@ -1,5 +1,5 @@
 const Table = require('cli-table3');
-const { Command, Option } = require('commander');
+const { Command } = require('commander');
 const { openMessagesDb, DEFAULT_DB_PATH } = require('./db');
 const {
   listConversations,
@@ -85,6 +85,15 @@ function* mapMessagesForPdf(messages, contacts) {
   }
 }
 
+function requireSelector(id, handle) {
+  if (id && handle) {
+    throw new Error('Specify either a chat ID (positional) or --handle, not both.');
+  }
+  if (!id && !handle) {
+    throw new Error('Specify a chat ID (positional) or --handle <value>.');
+  }
+}
+
 function withErrorHandling(action) {
   return (...args) =>
     Promise.resolve()
@@ -112,43 +121,43 @@ function run(argv) {
     );
 
   program
-    .command('read <value>')
-    .description('Print a chronological transcript for a conversation, by chat ID (default) or handle')
-    .addOption(new Option('--id', 'treat <value> as a chat ID (default)').conflicts('handle'))
-    .addOption(new Option('--handle', 'treat <value> as a phone/email substring').conflicts('id'))
+    .command('read [id]')
+    .description('Print a chronological transcript for a conversation, by chat ID (positional) or --handle')
+    .option('--handle <value>', 'look up by phone/email substring instead of a chat ID')
     .option('--limit <n>', 'maximum number of most recent messages to show', '100')
     .action(
-      withErrorHandling((value, options) => {
+      withErrorHandling((id, options) => {
+        requireSelector(id, options.handle);
         const db = openMessagesDb(program.opts().dbPath);
         const limit = Number(options.limit);
         const messages = options.handle
-          ? getMessagesForHandle(db, value, { limit })
-          : getMessagesForChatId(db, parseChatId(value), { limit });
+          ? getMessagesForHandle(db, options.handle, { limit })
+          : getMessagesForChatId(db, parseChatId(id), { limit });
         printTranscript(messages, program.opts().updateContacts);
       })
     );
 
   program
-    .command('export <value>')
-    .description("Export a conversation's full message history to a PDF, by chat ID (default) or handle")
-    .addOption(new Option('--id', 'treat <value> as a chat ID (default)').conflicts('handle'))
-    .addOption(new Option('--handle', 'treat <value> as a phone/email substring').conflicts('id'))
+    .command('export [id]')
+    .description("Export a conversation's full message history to a PDF, by chat ID (positional) or --handle")
+    .option('--handle <value>', 'look up by phone/email substring instead of a chat ID')
     .option('--limit <n>', 'cap the number of most recent messages exported (default: unlimited)')
-    .option('-o, --output <path>', 'output PDF file path (default: messages-<value>.pdf)')
+    .option('-o, --output <path>', 'output PDF file path (default: ~/Documents/messages-<value>.pdf)')
     .action(
-      withErrorHandling(async (value, options) => {
+      withErrorHandling(async (id, options) => {
+        requireSelector(id, options.handle);
         const db = openMessagesDb(program.opts().dbPath);
         const contacts = fetchContactsOrWarn(program.opts().updateContacts);
         const limit = options.limit ? Number(options.limit) : null;
-        const outputPath = options.output || defaultExportFilename(value);
+        const outputPath = options.output || defaultExportFilename(options.handle || id);
 
         let messages;
         let title;
         if (options.handle) {
-          messages = limit ? getMessagesForHandle(db, value, { limit }) : streamMessagesForHandle(db, value);
-          title = formatHandleWithName(value, contacts);
+          messages = limit ? getMessagesForHandle(db, options.handle, { limit }) : streamMessagesForHandle(db, options.handle);
+          title = formatHandleWithName(options.handle, contacts);
         } else {
-          const chatId = parseChatId(value);
+          const chatId = parseChatId(id);
           const meta = getChatMeta(db, chatId);
           messages = limit ? getMessagesForChatId(db, chatId, { limit }) : streamMessagesForChatId(db, chatId);
           title = meta.displayName || meta.handles.map((h) => formatHandleWithName(h, contacts)).join(', ') || `Chat ${chatId}`;

@@ -39,27 +39,27 @@ node bin/cli.js list tani
 node bin/cli.js list 4032
 ```
 
-### `read <value> [--id | --handle] [--limit N]`
+### `read [id] [--handle value] [--limit N]`
 
-Print a chronological transcript for a conversation. `<value>` is interpreted
-as a chat ID (from `list`) by default; pass `--handle` to instead match by
-phone number/email substring (works for 1:1 conversations only). `--id` and
-`--handle` are mutually exclusive. `--limit` caps the number of most recent
+Print a chronological transcript for a conversation. Give it either a chat ID
+(from `list`) as the positional argument, or `--handle <value>` to instead
+match by phone number/email substring (works for 1:1 conversations only) —
+exactly one of the two is required. `--limit` caps the number of most recent
 messages shown (default 100). Senders are shown as `Name (handle)` when a
 Contacts match is found, otherwise the bare handle.
 
 ```bash
-node bin/cli.js read 42                                  # by chat ID (default)
-node bin/cli.js read 42 --id                              # same, explicit
-node bin/cli.js read +15551234567 --handle                # by handle
-node bin/cli.js read someone@example.com --handle --limit 20
+node bin/cli.js read 42                                        # by chat ID
+node bin/cli.js read --handle +15551234567                      # by handle
+node bin/cli.js read --handle someone@example.com --limit 20
 ```
 
-### `export <value> [--id | --handle] [--limit N] [-o path]`
+### `export [id] [--handle value] [--limit N] [-o path]`
 
 Export a conversation's full message history (no cap, unlike `read`) to a
-PDF file. Selector flags work the same as `read`. `--limit N` caps it like
-`read` does, if you don't want the whole history. Default output path:
+PDF file. Selector works the same as `read` (positional chat ID or `--handle
+<value>`, exactly one required). `--limit N` caps it like `read` does, if you
+don't want the whole history. Default output path:
 `~/Documents/messages-<sanitized value>.pdf`; `-o/--output` overrides it.
 
 Text renders with bundled Noto Sans / Noto Sans JP fonts (covers Latin,
@@ -68,7 +68,7 @@ either bundled font and will render as blank boxes.
 
 ```bash
 node bin/cli.js export 42
-node bin/cli.js export +15551234567 --handle -o ~/Desktop/thread.pdf
+node bin/cli.js export --handle +15551234567 -o ~/Desktop/thread.pdf
 ```
 
 ### Global options
