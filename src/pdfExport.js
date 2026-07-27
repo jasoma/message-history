@@ -29,14 +29,22 @@ function exportTranscriptToPdf(messages, outputPath, { title } = {}) {
     registerFonts(doc);
 
     if (title) {
-      doc.font(fontFor(title, { bold: true })).fontSize(16).fillColor('#000000').text(title);
+      doc
+        .font(fontFor(title, { bold: true }))
+        .fontSize(16)
+        .fillColor('#000000')
+        .text(title);
       doc.moveDown();
     }
 
     let count = 0;
     for (const message of messages) {
       const headerText = `${message.sender}   ${formatDate(message.date)}`;
-      doc.font(fontFor(headerText, { bold: true })).fontSize(10).fillColor('#555555').text(headerText);
+      doc
+        .font(fontFor(headerText, { bold: true }))
+        .fontSize(10)
+        .fillColor('#555555')
+        .text(headerText);
       doc.font(fontFor(message.text)).fontSize(11).fillColor('#000000').text(message.text);
       doc.moveDown();
       count += 1;

@@ -18,7 +18,7 @@ function listConversations(db) {
        LEFT JOIN chat_message_join cmj ON cmj.chat_id = c.ROWID
        LEFT JOIN message m ON m.ROWID = cmj.message_id
        GROUP BY c.ROWID
-       ORDER BY lastMessageDateRaw DESC`
+       ORDER BY lastMessageDateRaw DESC`,
     )
     .all();
 
@@ -26,7 +26,7 @@ function listConversations(db) {
     .prepare(
       `SELECT chj.chat_id as chatId, h.id as handle
        FROM chat_handle_join chj
-       JOIN handle h ON h.ROWID = chj.handle_id`
+       JOIN handle h ON h.ROWID = chj.handle_id`,
     )
     .all();
 
@@ -53,9 +53,7 @@ function listConversations(db) {
 }
 
 function resolveHandleChatIds(db, handleQuery) {
-  const handles = db
-    .prepare(`SELECT ROWID as handleId, id as handleValue FROM handle WHERE id LIKE ?`)
-    .all(`%${handleQuery}%`);
+  const handles = db.prepare(`SELECT ROWID as handleId, id as handleValue FROM handle WHERE id LIKE ?`).all(`%${handleQuery}%`);
 
   if (handles.length === 0) {
     throw new HandleLookupError(`No handle matches "${handleQuery}". Run "list" to see known conversations.`);
@@ -72,7 +70,7 @@ function resolveHandleChatIds(db, handleQuery) {
        FROM chat c
        JOIN chat_handle_join chj ON chj.chat_id = c.ROWID
        WHERE chj.handle_id = ?
-         AND (SELECT COUNT(*) FROM chat_handle_join chj2 WHERE chj2.chat_id = c.ROWID) = 1`
+         AND (SELECT COUNT(*) FROM chat_handle_join chj2 WHERE chj2.chat_id = c.ROWID) = 1`,
     )
     .all(handleId);
 
@@ -94,7 +92,7 @@ function getChatMeta(db, chatId) {
       `SELECT h.id as handle
        FROM chat_handle_join chj
        JOIN handle h ON h.ROWID = chj.handle_id
-       WHERE chj.chat_id = ?`
+       WHERE chj.chat_id = ?`,
     )
     .all(chatId)
     .map((row) => row.handle);
@@ -140,7 +138,7 @@ function selectMessagesForChatIds(db, chatIds, limit) {
        ${MESSAGE_ROW_JOINS}
        WHERE cmj.chat_id IN (${placeholders})
        ORDER BY m.date DESC
-       LIMIT ?`
+       LIMIT ?`,
     )
     .all(...chatIds, limit);
 }
@@ -153,7 +151,7 @@ function* iterateMessagesForChatIds(db, chatIds) {
        FROM message m
        ${MESSAGE_ROW_JOINS}
        WHERE cmj.chat_id IN (${placeholders})
-       ORDER BY m.date ASC`
+       ORDER BY m.date ASC`,
     )
     .iterate(...chatIds);
 

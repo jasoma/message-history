@@ -51,7 +51,13 @@ function printList(db, filter, forceRefreshContacts) {
 
   const table = new Table({
     head: ['CHAT ID', 'TYPE', 'NAME/HANDLE(S)', 'MESSAGES', 'LAST MESSAGE'],
-    colWidths: [LIST_COLUMN_WIDTHS.chatId, LIST_COLUMN_WIDTHS.type, nameColumnWidth, LIST_COLUMN_WIDTHS.messages, LIST_COLUMN_WIDTHS.lastMessage],
+    colWidths: [
+      LIST_COLUMN_WIDTHS.chatId,
+      LIST_COLUMN_WIDTHS.type,
+      nameColumnWidth,
+      LIST_COLUMN_WIDTHS.messages,
+      LIST_COLUMN_WIDTHS.lastMessage,
+    ],
     wordWrap: true,
   });
 
@@ -117,7 +123,7 @@ function run(argv) {
       withErrorHandling((filter) => {
         const db = openMessagesDb(program.opts().dbPath);
         printList(db, filter, program.opts().updateContacts);
-      })
+      }),
     );
 
   program
@@ -134,7 +140,7 @@ function run(argv) {
           ? getMessagesForHandle(db, options.handle, { limit })
           : getMessagesForChatId(db, parseChatId(id), { limit });
         printTranscript(messages, program.opts().updateContacts);
-      })
+      }),
     );
 
   program
@@ -165,7 +171,7 @@ function run(argv) {
 
         const count = await exportTranscriptToPdf(mapMessagesForPdf(messages, contacts), outputPath, { title });
         console.log(`Wrote ${count} messages to ${outputPath}`);
-      })
+      }),
     );
 
   program.parse(argv);

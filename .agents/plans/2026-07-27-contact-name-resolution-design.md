@@ -68,6 +68,7 @@ phones: string[] }]`.
 
 Contacts are fetched once per invocation (inside `printList`/`printTranscript`
 in `src/cli.js`), then:
+
 - `list`: each conversation's `handles` are mapped through `findContactName`
   before being joined into the `NAME/HANDLE(S)` column (a chat's existing
   `display_name`, i.e. named groups, is left as-is).

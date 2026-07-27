@@ -15,7 +15,7 @@ format").
 - Scope: one conversation (by chat ID or handle, like `read`) with its full
   history, not a batch export of every conversation.
 - PDF library: `pdfkit` (pure JS, no headless browser dependency).
-- Layout: plain chronological transcript — bold "Sender   timestamp" header
+- Layout: plain chronological transcript — bold "Sender timestamp" header
   line per message, body text below, `moveDown()` between messages. No
   chat-bubble styling for this first pass.
 - Fonts: pdfkit's built-in fonts only cover Latin/WinAnsi text. Bundled two
@@ -50,7 +50,7 @@ format").
 - `resolveHandleChatIds(db, handleQuery)` and `getChatMeta(db, chatId)` factor
   out the existing validation/lookup logic (throwing `HandleLookupError` on
   ambiguous/missing matches) so both the bounded and streaming paths share it,
-  and so validation runs *before* any message rows are touched.
+  and so validation runs _before_ any message rows are touched.
 - Bounded path (`read`, and `export --limit N`) is unchanged in shape:
   `ORDER BY date DESC LIMIT N` via `.all()`, then `.reverse()`. A capped N is
   always small, so buffering is fine.

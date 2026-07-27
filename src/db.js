@@ -11,7 +11,8 @@ function openMessagesDb(dbPath = DEFAULT_DB_PATH) {
     if (error.code === 'SQLITE_CANTOPEN' || error.code === 'EPERM') {
       throw new Error(
         `Can't read ${dbPath} — grant Full Disk Access to your terminal app in ` +
-          'System Settings → Privacy & Security → Full Disk Access, then restart the terminal.'
+          'System Settings → Privacy & Security → Full Disk Access, then restart the terminal.',
+        { cause: error },
       );
     }
     throw error;

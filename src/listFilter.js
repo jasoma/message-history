@@ -17,7 +17,7 @@ function conversationMatchesFilter(filter, conversation, contacts) {
   if (nameMatchesFilter(filter, conversation.displayName)) return true;
 
   return conversation.handles.some(
-    (handle) => handleMatchesFilter(filter, handle) || nameMatchesFilter(filter, findContactName(handle, contacts))
+    (handle) => handleMatchesFilter(filter, handle) || nameMatchesFilter(filter, findContactName(handle, contacts)),
   );
 }
 

@@ -82,7 +82,7 @@ reuse `queries.js` unchanged and only needs a new renderer alongside the text on
     1:1), handle(s) via `chat_handle_join`, message count, most recent message
     date. One row per conversation, 1:1 and group alike.
   - `getMessagesForHandle(db, handleQuery, { limit })` → matches
-    `handle.id LIKE '%query%'`; finds the 1:1 chat(s) containing *only* that
+    `handle.id LIKE '%query%'`; finds the 1:1 chat(s) containing _only_ that
     handle (via `chat_handle_join`). Throws a typed error if the match is
     ambiguous (multiple distinct handles) or no 1:1 chat exists — the CLI turns
     this into a helpful message. Returns messages newest-first internally, each
@@ -92,20 +92,24 @@ reuse `queries.js` unchanged and only needs a new renderer alongside the text on
 ## CLI layer
 
 **`message-history list`** — table of all conversations:
+
 ```
 CHAT ID  TYPE    NAME/HANDLE(S)              MESSAGES  LAST MESSAGE
 42       1:1     +15551234567                 812      2026-07-26 19:41
 17       group   "Family" (3 members)         3,204     2026-07-25 08:02
 ```
+
 (Group participants shown as raw handles since contact-name resolution is out of
 scope this session.)
 
 **`message-history read <handle> [--limit N]`** — chronological transcript,
 oldest-first:
+
 ```
 [2026-07-20 14:03] Me: hey are we still on for saturday
 [2026-07-20 14:05] +15551234567: yep! see you then
 ```
+
 `--limit N` caps to the N most recent messages (default 100) so long threads
 don't flood the terminal by default.
 
@@ -115,9 +119,9 @@ Shared formatting helpers: local-timezone timestamp formatting, "Me" label for
 ## Error handling
 
 - DB missing/unreadable (`EPERM`/`SQLITE_CANTOPEN`) → caught in `db.js`, rethrown
-  with: *"Can't read chat.db — grant Full Disk Access to your terminal app in
+  with: _"Can't read chat.db — grant Full Disk Access to your terminal app in
   System Settings → Privacy & Security → Full Disk Access, then restart the
-  terminal."*
+  terminal."_
 - Ambiguous/no-match handle in `read` → clear message plus a suggestion to run
   `list`.
 - Uncaught errors in `cli.js` print `error.message` and exit 1 (no raw stack
