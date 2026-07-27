@@ -14,10 +14,11 @@ Full Disk Access → add your terminal app, then restart the terminal.
 `list` and `read` also resolve handles to Contacts app names. The first run
 triggers a macOS permission prompt asking to let your terminal control
 Contacts — approve it, or resolution silently falls back to raw handles.
-This adds noticeable latency (several seconds, scaling with your contact
-count) to every `list`/`read` call, since it's not something normalizing/
-matching logic can speed up — it's inherent to AppleScript's per-property
-access overhead against the Contacts app.
+Fetching contacts is slow (several seconds, scaling with your contact count
+— inherent to AppleScript's per-property access overhead against the
+Contacts app), so results are cached at `~/.message-history/contacts-cache.json`
+after the first fetch; every call after that is fast. Pass `--update-contacts`
+to refresh the cache (e.g. after adding/editing a contact).
 
 ## Commands
 
@@ -50,6 +51,7 @@ node bin/cli.js read someone@example.com --handle --limit 20
 ### Global options
 
 - `--db-path <path>` — use a chat.db at a non-default location (useful for testing).
+- `--update-contacts` — refresh the local contacts cache before running (see above).
 
 ## Tests
 

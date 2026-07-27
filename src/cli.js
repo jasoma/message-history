@@ -3,7 +3,7 @@ const { Command, Option } = require('commander');
 const { openMessagesDb, DEFAULT_DB_PATH } = require('./db');
 const { listConversations, getMessagesForHandle, getMessagesForChatId } = require('./queries');
 const { parseChatId } = require('./chatId');
-const { fetchAllContacts } = require('./contacts');
+const { loadContacts } = require('./contactsCache');
 const { findContactName } = require('./contactMatching');
 
 const LIST_COLUMN_WIDTHS = { chatId: 9, type: 8, messages: 10, lastMessage: 21 };
@@ -15,9 +15,9 @@ function formatDate(date) {
   return date.toLocaleString('en-US', { hour12: false }).replace(',', '');
 }
 
-function fetchContactsOrWarn() {
+function fetchContactsOrWarn(forceRefresh) {
   try {
-    return fetchAllContacts();
+    return loadContacts({ forceRefresh });
   } catch (error) {
     console.error(`Warning: couldn't resolve contact names (${error.message}); showing raw handles.`);
     return [];
@@ -29,9 +29,9 @@ function formatHandleWithName(handle, contacts) {
   return name ? `${name} (${handle})` : handle;
 }
 
-function printList(db) {
+function printList(db, forceRefreshContacts) {
   const conversations = listConversations(db);
-  const contacts = fetchContactsOrWarn();
+  const contacts = fetchContactsOrWarn(forceRefreshContacts);
   const terminalWidth = process.stdout.columns || 120;
   const fixedWidth = LIST_COLUMN_WIDTHS.chatId + LIST_COLUMN_WIDTHS.type + LIST_COLUMN_WIDTHS.messages + LIST_COLUMN_WIDTHS.lastMessage;
   const nameColumnWidth = Math.max(MIN_NAME_COLUMN_WIDTH, terminalWidth - fixedWidth - LIST_TABLE_OVERHEAD);
@@ -50,8 +50,8 @@ function printList(db) {
   console.log(table.toString());
 }
 
-function printTranscript(messages) {
-  const contacts = fetchContactsOrWarn();
+function printTranscript(messages, forceRefreshContacts) {
+  const contacts = fetchContactsOrWarn(forceRefreshContacts);
   for (const message of messages) {
     let sender = 'Unknown';
     if (message.isFromMe) sender = 'Me';
@@ -75,6 +75,7 @@ function run(argv) {
   const program = new Command();
   program.name('message-history').description('Read local iMessage history from chat.db');
   program.option('--db-path <path>', 'path to chat.db', DEFAULT_DB_PATH);
+  program.option('--update-contacts', 'refresh the local contacts cache before running', false);
 
   program
     .command('list')
@@ -82,7 +83,7 @@ function run(argv) {
     .action(
       withErrorHandling(() => {
         const db = openMessagesDb(program.opts().dbPath);
-        printList(db);
+        printList(db, program.opts().updateContacts);
       })
     );
 
@@ -99,7 +100,7 @@ function run(argv) {
         const messages = options.handle
           ? getMessagesForHandle(db, value, { limit })
           : getMessagesForChatId(db, parseChatId(value), { limit });
-        printTranscript(messages);
+        printTranscript(messages, program.opts().updateContacts);
       })
     );
 
