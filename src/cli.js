@@ -3,6 +3,8 @@ const { Command, Option } = require('commander');
 const { openMessagesDb, DEFAULT_DB_PATH } = require('./db');
 const { listConversations, getMessagesForHandle, getMessagesForChatId } = require('./queries');
 const { parseChatId } = require('./chatId');
+const { fetchAllContacts } = require('./contacts');
+const { findContactName } = require('./contactMatching');
 
 const LIST_COLUMN_WIDTHS = { chatId: 9, type: 8, messages: 10, lastMessage: 21 };
 const LIST_TABLE_OVERHEAD = 16; // cli-table3 borders + padding for 5 columns
@@ -13,8 +15,23 @@ function formatDate(date) {
   return date.toLocaleString('en-US', { hour12: false }).replace(',', '');
 }
 
+function fetchContactsOrWarn() {
+  try {
+    return fetchAllContacts();
+  } catch (error) {
+    console.error(`Warning: couldn't resolve contact names (${error.message}); showing raw handles.`);
+    return [];
+  }
+}
+
+function formatHandleWithName(handle, contacts) {
+  const name = findContactName(handle, contacts);
+  return name ? `${name} (${handle})` : handle;
+}
+
 function printList(db) {
   const conversations = listConversations(db);
+  const contacts = fetchContactsOrWarn();
   const terminalWidth = process.stdout.columns || 120;
   const fixedWidth = LIST_COLUMN_WIDTHS.chatId + LIST_COLUMN_WIDTHS.type + LIST_COLUMN_WIDTHS.messages + LIST_COLUMN_WIDTHS.lastMessage;
   const nameColumnWidth = Math.max(MIN_NAME_COLUMN_WIDTH, terminalWidth - fixedWidth - LIST_TABLE_OVERHEAD);
@@ -26,21 +43,19 @@ function printList(db) {
   });
 
   for (const c of conversations) {
-    table.push([
-      c.chatId,
-      c.type,
-      c.displayName || c.handles.join(', ') || '(unknown)',
-      c.messageCount,
-      formatDate(c.lastMessageDate),
-    ]);
+    const nameOrHandles = c.displayName || c.handles.map((h) => formatHandleWithName(h, contacts)).join(', ') || '(unknown)';
+    table.push([c.chatId, c.type, nameOrHandles, c.messageCount, formatDate(c.lastMessageDate)]);
   }
 
   console.log(table.toString());
 }
 
 function printTranscript(messages) {
+  const contacts = fetchContactsOrWarn();
   for (const message of messages) {
-    const sender = message.isFromMe ? 'Me' : message.senderHandle || 'Unknown';
+    let sender = 'Unknown';
+    if (message.isFromMe) sender = 'Me';
+    else if (message.senderHandle) sender = formatHandleWithName(message.senderHandle, contacts);
     console.log(`[${formatDate(message.date)}] ${sender}: ${message.text}`);
   }
 }
