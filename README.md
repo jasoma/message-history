@@ -59,9 +59,8 @@ node bin/cli.js read someone@example.com --handle --limit 20
 
 Export a conversation's full message history (no cap, unlike `read`) to a
 PDF file. Selector flags work the same as `read`. `--limit N` caps it like
-`read` does, if you don't want the whole history. Default output filename:
-`messages-<sanitized value>.pdf` in the current directory; `-o/--output`
-overrides it.
+`read` does, if you don't want the whole history. Default output path:
+`~/Documents/messages-<sanitized value>.pdf`; `-o/--output` overrides it.
 
 Text renders with bundled Noto Sans / Noto Sans JP fonts (covers Latin,
 Cyrillic, Greek, and Japanese). Korean text and emoji aren't covered by
