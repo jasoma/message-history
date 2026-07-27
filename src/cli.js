@@ -5,6 +5,7 @@ const { listConversations, getMessagesForHandle, getMessagesForChatId } = requir
 const { parseChatId } = require('./chatId');
 const { loadContacts } = require('./contactsCache');
 const { findContactName } = require('./contactMatching');
+const { conversationMatchesFilter } = require('./listFilter');
 
 const LIST_COLUMN_WIDTHS = { chatId: 9, type: 8, messages: 10, lastMessage: 21 };
 const LIST_TABLE_OVERHEAD = 16; // cli-table3 borders + padding for 5 columns
@@ -29,9 +30,16 @@ function formatHandleWithName(handle, contacts) {
   return name ? `${name} (${handle})` : handle;
 }
 
-function printList(db, forceRefreshContacts) {
+function printList(db, filter, forceRefreshContacts) {
   const conversations = listConversations(db);
   const contacts = fetchContactsOrWarn(forceRefreshContacts);
+  const filtered = filter ? conversations.filter((c) => conversationMatchesFilter(filter, c, contacts)) : conversations;
+
+  if (filter && filtered.length === 0) {
+    console.log(`No conversations match "${filter}".`);
+    return;
+  }
+
   const terminalWidth = process.stdout.columns || 120;
   const fixedWidth = LIST_COLUMN_WIDTHS.chatId + LIST_COLUMN_WIDTHS.type + LIST_COLUMN_WIDTHS.messages + LIST_COLUMN_WIDTHS.lastMessage;
   const nameColumnWidth = Math.max(MIN_NAME_COLUMN_WIDTH, terminalWidth - fixedWidth - LIST_TABLE_OVERHEAD);
@@ -42,7 +50,7 @@ function printList(db, forceRefreshContacts) {
     wordWrap: true,
   });
 
-  for (const c of conversations) {
+  for (const c of filtered) {
     const nameOrHandles = c.displayName || c.handles.map((h) => formatHandleWithName(h, contacts)).join(', ') || '(unknown)';
     table.push([c.chatId, c.type, nameOrHandles, c.messageCount, formatDate(c.lastMessageDate)]);
   }
@@ -78,12 +86,12 @@ function run(argv) {
   program.option('--update-contacts', 'refresh the local contacts cache before running', false);
 
   program
-    .command('list')
-    .description('List all conversations with message counts')
+    .command('list [filter]')
+    .description('List conversations, optionally filtered by name or handle (case-insensitive contains match)')
     .action(
-      withErrorHandling(() => {
+      withErrorHandling((filter) => {
         const db = openMessagesDb(program.opts().dbPath);
-        printList(db, program.opts().updateContacts);
+        printList(db, filter, program.opts().updateContacts);
       })
     );
 

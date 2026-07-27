@@ -22,14 +22,21 @@ to refresh the cache (e.g. after adding/editing a contact).
 
 ## Commands
 
-### `list`
+### `list [filter]`
 
-List all conversations (1:1 and group) with message counts and last-message
+List conversations (1:1 and group) with message counts and last-message
 dates. Handles are shown as `Name (handle)` when a Contacts match is found,
 otherwise the bare handle.
 
+Pass `[filter]` to only show conversations matching it — a case-insensitive
+contains match against group names and contact names, and a formatting-tolerant
+digit/email match against handles (e.g. `4032` matches `+61402898325`,
+`gmail` matches `someone@gmail.com`).
+
 ```bash
 node bin/cli.js list
+node bin/cli.js list tani
+node bin/cli.js list 4032
 ```
 
 ### `read <value> [--id | --handle] [--limit N]`
